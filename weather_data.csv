@@ -1,6 +1,0 @@
-city,temperature_c,feels_like_c,humidity_pct,condition,wind_speed_mps,fetched_at
-Madrid,24.47,23.99,39,clear sky,1.79,2026-06-10 12:36:14
-Manila,30.63,37.63,83,overcast clouds,1.34,2026-06-10 12:36:14
-Barcelona,22.8,22.65,58,broken clouds,3.74,2026-06-10 12:36:14
-London,15.99,15.29,63,overcast clouds,4.02,2026-06-10 12:36:15
-Tokyo,20.28,20.06,65,overcast clouds,0.45,2026-06-10 12:36:15
