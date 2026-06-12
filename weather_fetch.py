@@ -14,6 +14,7 @@ from email.mime.application import MIMEApplication
 import requests
 import pandas as pd
 from dotenv import load_dotenv
+from compare import load_climate_baseline, compare_to_baseline
 
 # ============================================================
 # CONFIGURATION
@@ -93,7 +94,11 @@ def save_to_csv(records: list, filename: str = "weather_data.csv") -> None:
 # ============================================================
 # SEND EMAIL REPORT
 # ============================================================
-def send_email_report(records: list, csv_filename: str = "weather_data.csv") -> None:
+def send_email_report(
+    records: list,
+    csv_filename: str = "weather_data.csv",
+    madrid_comparison: dict | None = None,
+) -> None:
     """
     Send the weather report via email - HTML table in the body,
     plus the CSV as an attachment.
@@ -115,11 +120,35 @@ def send_email_report(records: list, csv_filename: str = "weather_data.csv") -> 
     table_html = df[["city", "temperature_c", "feels_like_c", "humidity_pct", "condition"]].to_html(
         index=False, border=1
     )
+    # Build optional "Madrid vs historical average" insight box
+    comparison_html = ""
+    if madrid_comparison:
+        diff = madrid_comparison["diff_c"]
+        if diff > 0:
+            color, arrow = "#d9534f", "above"   # red - hotter than usual
+        elif diff < 0:
+            color, arrow = "#0275d8", "below"   # blue - colder than usual
+        else:
+            color, arrow = "#5cb85c", "equal to"
+
+        comparison_html = f"""
+        <div style="background:#f5f5f5; border-left:4px solid {color};
+                    padding:10px 15px; margin:10px 0;">
+          <strong>Madrid Insight:</strong>
+          Current temperature ({madrid_comparison['current_temp_c']}°C) is
+          <span style="color:{color}; font-weight:bold;">
+            {abs(diff)}°C {arrow}
+          </span>
+          the historical average for {madrid_comparison['month']}
+          ({madrid_comparison['historical_avg_c']}°C).
+        </div>
+        """
 
     body = f"""
     <html>
       <body>
         <h2>Daily Weather Report - {datetime.now().strftime('%Y-%m-%d %H:%M')}</h2>
+        {comparison_html}
         {table_html}
         <p><i>Full CSV attached.</i></p>
       </body>
@@ -167,7 +196,27 @@ if __name__ == "__main__":
 
     if results:
         save_to_csv(results)
-        send_email_report(results)
+
+        # Try to compute Madrid vs historical average comparison.
+        # If the climate cache is missing, log a warning but don't
+        # block the email - comparison is a "nice to have" extra.
+        madrid_comparison = None
+        madrid_record = next((r for r in results if r["city"] == "Madrid"), None)
+
+        if madrid_record:
+            try:
+                baseline = load_climate_baseline()
+                madrid_comparison = compare_to_baseline(
+                    madrid_record["temperature_c"], baseline
+                )
+                print(f"[INFO] {madrid_comparison['message']}")
+            except FileNotFoundError as e:
+                print(f"[WARNING] Skipping climate comparison: {e}")
+            except KeyError as e:
+                print(f"[WARNING] Skipping climate comparison: {e}")
+        else:
+            print("[WARNING] Madrid not found in results - skipping comparison.")
+
+        send_email_report(results, madrid_comparison=madrid_comparison)
     else:
         print("[ERROR] No data fetched. Check your API key.")
-
